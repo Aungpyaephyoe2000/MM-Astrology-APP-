@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>မြန်မာဗေဒင် - အွန်လိုင်းဗေဒင်မေးမြန်းရန်</title>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -25,6 +23,7 @@
             font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 8px;
         }
         button.outline { background: transparent; border: 2px solid #f5576c; color: #f5576c; }
+        button.outline:hover { background: #f5576c; color: white; }
         .astro-card { background: #f8fafc; border-radius: 20px; padding: 20px; margin-bottom: 16px; border-left: 5px solid #f5576c; cursor: pointer; transition: all 0.3s; }
         .astro-card:hover { transform: translateX(5px); }
         .astro-name { font-size: 20px; font-weight: bold; }
@@ -33,7 +32,7 @@
         .badge-warning { background: #f59e0b; color: white; }
         .badge-info { background: #3b82f6; color: white; }
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
-        .modal-content { background: white; border-radius: 28px; max-width: 550px; width: 100%; padding: 24px; }
+        .modal-content { background: white; border-radius: 28px; max-width: 550px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 24px; }
         .balance-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 24px; text-align: center; margin-bottom: 20px; }
         .balance-amount { font-size: 48px; font-weight: bold; margin: 10px 0; }
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -43,8 +42,8 @@
         @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .empty-state { text-align: center; padding: 40px; color: #94a3b8; }
         .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
-        .action-buttons button { margin: 0; }
         .logout-btn { background: #ef4444; margin-top: 20px; }
+        .logout-btn:hover { background: #dc2626; }
         .admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .stat-card { background: #f1f5f9; padding: 15px; border-radius: 16px; text-align: center; }
         .stat-number { font-size: 28px; font-weight: bold; color: #f5576c; }
@@ -106,14 +105,10 @@
                 <div class="tabs">
                     <div class="tab active" onclick="switchAdminTab('pending')">⏳ ဆိုင်းငံ့ဗေဒင်ဆရာ</div>
                     <div class="tab" onclick="switchAdminTab('approved')">✅ အတည်ပြုပြီးဗေဒင်ဆရာ</div>
-                    <div class="tab" onclick="switchAdminTab('payments')">💰 ငွေဖြည့်တောင်းခံမှုများ</div>
-                    <div class="tab" onclick="switchAdminTab('withdraw')">💸 ငွေထုတ်တောင်းခံမှုများ</div>
                     <div class="tab" onclick="switchAdminTab('users')">👥 သုံးစွဲသူများ</div>
                 </div>
-                <div id="adminPending" style="display: block;"></div>
+                <div id="adminPending"></div>
                 <div id="adminApproved" style="display: none;"></div>
-                <div id="adminPayments" style="display: none;"></div>
-                <div id="adminWithdraw" style="display: none;"></div>
                 <div id="adminUsers" style="display: none;"></div>
             </div>
             <button onclick="logout()" class="logout-btn">🚪 ထွက်ရန်</button>
@@ -121,16 +116,6 @@
     </div>
 
     <!-- Modals -->
-    <div id="topUpModal" class="modal"><div class="modal-content"><h3>💳 ငွေဖြည့်သွင်းရန်</h3>
-        <div style="background:#fef3c7;padding:15px;border-radius:20px;margin-bottom:15px;text-align:center">
-            <div>📱 ငွေလွှဲရန်: <strong>09428923096</strong></div><div>Nann Shwe Yee Win Zaw</div>
-        </div>
-        <input type="number" id="topUpAmount" placeholder="ငွေပမာဏ (MMK)" value="10000">
-        <input type="file" id="screenshotInput" accept="image/*"><div id="screenshotPreview"></div>
-        <input type="text" id="senderName" placeholder="ငွေလွှဲသူအမည်">
-        <button onclick="submitTopUpRequest()">📤 တောင်းခံမည်</button><button onclick="closeModal('topUpModal')" class="outline">ပိတ်</button>
-    </div></div>
-
     <div id="questionModal" class="modal"><div class="modal-content"><h3>📝 မေးခွန်းမေးရန်</h3>
         <div id="selectedAstrologerInfo"></div>
         <textarea id="questionText" rows="5" placeholder="သင့်မေးခွန်းကို အသေးစိတ်ရိုက်ထည့်ပါ..."></textarea>
@@ -142,12 +127,6 @@
         <div id="priceRequestInfo"></div>
         <div class="price-input-group"><input type="number" id="requestedAmount" placeholder="သတ်မှတ်မည့်ငွေပမာဏ (MMK)"><span>MMK</span></div>
         <button onclick="sendPriceRequest()">📤 တောင်းခံမည်</button><button onclick="closeModal('priceRequestModal')" class="outline">ပိတ်</button>
-    </div></div>
-
-    <div id="confirmPriceModal" class="modal"><div class="modal-content"><h3>💰 အခကြေးငွေ အတည်ပြုချက်</h3>
-        <div id="confirmPriceInfo"></div>
-        <div class="action-buttons"><button onclick="acceptPrice()" style="background:#10b981;">✅ သဘောတူပါသည်</button><button onclick="rejectPrice()" style="background:#ef4444;">❌ ငြင်းပယ်သည်</button></div>
-        <button onclick="closeModal('confirmPriceModal')" class="outline">ပိတ်</button>
     </div></div>
 
     <div id="answerModal" class="modal"><div class="modal-content"><h3>✍️ အဖြေပေးရန်</h3>
@@ -162,35 +141,34 @@
         <button onclick="requestWithdraw()">📤 ငွေထုတ်တောင်းခံမည်</button><button onclick="closeModal('withdrawModal')" class="outline">ပိတ်</button>
     </div></div>
 
+    <div id="topUpModal" class="modal"><div class="modal-content"><h3>💳 ငွေဖြည့်သွင်းရန်</h3>
+        <div style="background:#fef3c7;padding:15px;border-radius:20px;margin-bottom:15px;text-align:center">
+            <div>📱 ငွေလွှဲရန်: <strong>09428923096</strong></div><div>Nann Shwe Yee Win Zaw</div>
+        </div>
+        <input type="number" id="topUpAmount" placeholder="ငွေပမာဏ (MMK)" value="10000">
+        <input type="file" id="screenshotInput" accept="image/*"><div id="screenshotPreview"></div>
+        <input type="text" id="senderName" placeholder="ငွေလွှဲသူအမည်">
+        <button onclick="submitTopUpRequest()">📤 တောင်းခံမည်</button><button onclick="closeModal('topUpModal')" class="outline">ပိတ်</button>
+    </div></div>
+
     <div id="deleteUserModal" class="modal"><div class="modal-content"><h3>⚠️ အကောင့်ဖျက်ရန် အတည်ပြုချက်</h3>
         <div id="deleteUserInfo"></div><button onclick="confirmDeleteUser()" style="background:#ef4444;">🗑️ အတည်ပြုဖျက်မည်</button>
         <button onclick="closeModal('deleteUserModal')" class="outline">မဖျက်တော့ပါ</button>
     </div></div>
 
     <script>
-        // ==================== FIREBASE CONFIGURATION ====================
-        const firebaseConfig = {
-            apiKey: "AIzaSyDEPfQOM4GVxbjZrVnIZKX8oI7cJXayKYY",
-            authDomain: "mm-astrology-app.firebaseapp.com",
-            projectId: "mm-astrology-app",
-            storageBucket: "mm-astrology-app.firebasestorage.app",
-            messagingSenderId: "112343063116",
-            appId: "1:112343063116:web:e191e9495bd82a5ba6b2e9",
-            measurementId: "G-FL4QGGGVD8"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        // ==================== SUPABASE CONFIG ====================
+        const SUPABASE_URL = "sb_publishable_0nXjYLoM_3_ibhrt2ytsog_uC_t8dLh";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxieHd2aXVwd3hkaWdqZmF0bG9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1ODUzNjYsImV4cCI6MjA5MDE2MTM2Nn0.E8w_xZ0Rxp812nPdKDArB_2TtSZ5PIgoJZlkgBNtE0k";
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         let currentUser = null;
         let selectedAstrologer = null;
-        let currentPriceRequestId = null;
+        let currentAnswerId = null;
         let currentScreenshot = null;
-        let currentAdminTab = 'pending';
         let userToDelete = null;
 
-        // ==================== HELPER FUNCTIONS ====================
         function showNotification(msg) {
             let n = document.createElement('div');
             n.className = 'notification';
@@ -201,7 +179,6 @@
         
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         
-        // ==================== AUTH FUNCTIONS ====================
         function switchAuthTab(tab) {
             document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
             document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
@@ -214,23 +191,23 @@
             let role = document.getElementById('regRole').value;
             if (!name || !email || !password) return showNotification('အချက်အလက်အပြည့်ဖြည့်ပါ');
             
-            let usersRef = database.ref('users');
-            let snapshot = await usersRef.orderByChild('email').equalTo(email).once('value');
-            if (snapshot.exists()) return showNotification('Email ရှိပြီးသား');
+            let { data: existing } = await supabase.from('users').select('*').eq('email', email);
+            if (existing && existing.length > 0) return showNotification('Email ရှိပြီးသား');
             
-            let newUser = {
-                id: Date.now(),
+            let newId = Date.now();
+            let { error } = await supabase.from('users').insert([{
+                id: newId,
                 name: name,
                 email: email,
                 password: password,
                 role: role,
                 balance: role === 'user' ? 10000 : 0,
-                isApproved: role === 'astrologer' ? false : true,
+                is_approved: role === 'astrologer' ? false : true,
                 earnings: 0,
-                astrologyTypes: [],
-                createdAt: new Date().toISOString()
-            };
-            await usersRef.child(newUser.id.toString()).set(newUser);
+                astrology_types: []
+            }]);
+            
+            if (error) { showNotification('မှားယွင်းမှု: ' + error.message); return; }
             showNotification('အကောင့်အောင်မြင်ပါသည်');
             switchAuthTab('login');
         }
@@ -239,26 +216,24 @@
             let email = document.getElementById('loginEmail').value;
             let password = document.getElementById('loginPassword').value;
             
-            let usersRef = database.ref('users');
-            let snapshot = await usersRef.orderByChild('email').equalTo(email).once('value');
-            let user = null;
-            snapshot.forEach(child => { 
-                if (child.val().password === password) user = child.val(); 
-            });
+            let { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('email', email)
+                .eq('password', password);
+                
+            if (error || !data || data.length === 0) return showNotification('Email/စကားဝှက် မှား');
             
-            if (!user) return showNotification('Email/စကားဝှက် မှား');
-            currentUser = user;
-            localStorage.setItem('currentUser', JSON.stringify(user));
+            currentUser = data[0];
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
             document.getElementById('authSection').style.display = 'none';
             
-            if (user.role === 'user') showUserDashboard();
-            else if (user.role === 'astrologer') {
-                if (!user.isApproved) { 
-                    showNotification('Admin မှအတည်ပြုပေးပါမည်'); 
-                    logout(); 
-                } else showAstrologerDashboard();
+            if (currentUser.role === 'user') showUserDashboard();
+            else if (currentUser.role === 'astrologer') {
+                if (!currentUser.is_approved) { showNotification('Admin မှအတည်ပြုပေးပါမည်'); logout(); }
+                else showAstrologerDashboard();
             }
-            else if (user.role === 'admin') showAdminDashboard();
+            else if (currentUser.role === 'admin') showAdminDashboard();
         }
         
         function logout() {
@@ -267,7 +242,6 @@
             location.reload();
         }
         
-        // ==================== USER DASHBOARD ====================
         async function showUserDashboard() {
             document.getElementById('userDashboard').style.display = 'block';
             document.getElementById('astroDashboard').style.display = 'none';
@@ -275,22 +249,18 @@
             document.getElementById('userBalance').innerText = currentUser.balance.toLocaleString();
             await loadAstrologers();
             await loadUserQuestions();
-            
-            database.ref('priceRequests').orderByChild('userId').equalTo(currentUser.id).on('value', () => loadUserQuestions());
-            database.ref('consultations').orderByChild('userId').equalTo(currentUser.id).on('value', () => loadUserQuestions());
         }
         
         async function loadAstrologers() {
-            let snapshot = await database.ref('users').once('value');
-            let astrologers = [];
-            snapshot.forEach(child => { 
-                let u = child.val();
-                if (u.role === 'astrologer' && u.isApproved) astrologers.push(u); 
-            });
-            
+            let { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('role', 'astrologer')
+                .eq('is_approved', true);
+                
             let container = document.getElementById('astrologersList');
-            if (!astrologers.length) { container.innerHTML = '<div class="empty-state">ဗေဒင်ဆရာမရှိသေး</div>'; return; }
-            container.innerHTML = astrologers.map(a => `
+            if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state">ဗေဒင်ဆရာမရှိသေး</div>'; return; }
+            container.innerHTML = data.map(a => `
                 <div class="astro-card" onclick="openQuestionModal(${a.id}, '${a.name}')">
                     <div class="astro-name">🔮 ${a.name}</div>
                     <div style="color:#666;">💰 ဗေဒင်ဆရာက အခကြေးငွေ တောင်းခံမည်</div>
@@ -298,46 +268,53 @@
         }
         
         async function loadUserQuestions() {
-            let consultations = [];
-            let consSnapshot = await database.ref('consultations').orderByChild('userId').equalTo(currentUser.id).once('value');
-            consSnapshot.forEach(child => consultations.push(child.val()));
-            consultations.reverse();
-            
-            let priceRequests = [];
-            let priceSnapshot = await database.ref('priceRequests').orderByChild('userId').equalTo(currentUser.id).once('value');
-            priceSnapshot.forEach(child => { if (child.val().status === 'pending') priceRequests.push(child.val()); });
-            
+            let { data: consultations } = await supabase
+                .from('consultations')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: false });
+                
+            let { data: priceRequests } = await supabase
+                .from('price_requests')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .eq('status', 'pending');
+                
             let container = document.getElementById('myQuestions');
             let html = '';
             
-            priceRequests.forEach(req => {
-                html += `<div class="astro-card" style="border-left-color: #f59e0b">
-                    <div><span class="badge badge-warning">⏳ အခကြေးငွေ စောင့်ဆိုင်းနေ</span></div>
-                    <div><strong>🔮 ${req.astrologerName}</strong></div>
-                    <div><strong>မေးခွန်း:</strong> ${req.question}</div>
-                    <div style="font-size:18px;font-weight:bold;color:#f5576c;">💰 ${req.requestedAmount.toLocaleString()} MMK</div>
-                    <div class="action-buttons">
-                        <button onclick="acceptPriceRequest('${req.id}')" style="background:#10b981;">✅ သဘောတူပါသည်</button>
-                        <button onclick="rejectPriceRequest('${req.id}')" style="background:#ef4444;">❌ ငြင်းပယ်သည်</button>
-                    </div>
-                </div>`;
-            });
+            if (priceRequests && priceRequests.length > 0) {
+                priceRequests.forEach(req => {
+                    html += `<div class="astro-card" style="border-left-color: #f59e0b">
+                        <div><span class="badge badge-warning">⏳ အခကြေးငွေ စောင့်ဆိုင်းနေ</span></div>
+                        <div><strong>🔮 ${req.astrologer_name}</strong></div>
+                        <div><strong>မေးခွန်း:</strong> ${req.question}</div>
+                        <div style="font-size:18px;font-weight:bold;color:#f5576c;">💰 ${req.requested_amount.toLocaleString()} MMK</div>
+                        <div class="action-buttons">
+                            <button onclick="acceptPrice('${req.id}', ${req.requested_amount}, '${req.consultation_id}')" style="background:#10b981;">✅ သဘောတူပါသည်</button>
+                            <button onclick="rejectPrice('${req.id}')" style="background:#ef4444;">❌ ငြင်းပယ်သည်</button>
+                        </div>
+                    </div>`;
+                });
+            }
             
-            consultations.forEach(q => {
-                let statusText = '', statusClass = '';
-                if (q.status === 'agreed') { statusText = 'သဘောတူပြီး - အဖြေစောင့်ဆိုင်း'; statusClass = 'badge-info'; }
-                else if (q.status === 'answered') { statusText = 'ဖြေပြီး - ငွေပေးရန်'; statusClass = 'badge-success'; }
-                else if (q.status === 'paid') { statusText = 'ငွေပေးချေပြီး'; statusClass = 'badge-success'; }
-                else { statusText = q.status; statusClass = 'badge-warning'; }
-                
-                html += `<div class="astro-card">
-                    <div><span class="badge ${statusClass}">${statusText}</span></div>
-                    <div><strong>🔮 ${q.astrologerName}</strong> ${q.agreedAmount ? `(${q.agreedAmount.toLocaleString()} MMK)` : ''}</div>
-                    <div><strong>မေး:</strong> ${q.question}</div>
-                    ${q.answer ? `<div style="background:#f1f5f9;padding:12px;border-radius:16px;margin-top:10px"><strong>✨ အဖြေ:</strong> ${q.answer}</div>` : ''}
-                    ${q.status === 'answered' && !q.paid ? `<button onclick="payForConsultation('${q.id}', ${q.agreedAmount})" style="background:#10b981;margin-top:10px;">💰 ${q.agreedAmount.toLocaleString()} MMK ပေးချေရန်</button>` : ''}
-                </div>`;
-            });
+            if (consultations && consultations.length > 0) {
+                consultations.forEach(q => {
+                    let statusText = '', statusClass = '';
+                    if (q.status === 'agreed') { statusText = 'သဘောတူပြီး - အဖြေစောင့်ဆိုင်း'; statusClass = 'badge-info'; }
+                    else if (q.status === 'answered') { statusText = 'ဖြေပြီး - ငွေပေးရန်'; statusClass = 'badge-success'; }
+                    else if (q.status === 'paid') { statusText = 'ငွေပေးချေပြီး'; statusClass = 'badge-success'; }
+                    else { statusText = q.status; statusClass = 'badge-warning'; }
+                    
+                    html += `<div class="astro-card">
+                        <div><span class="badge ${statusClass}">${statusText}</span></div>
+                        <div><strong>🔮 ${q.astrologer_name}</strong> ${q.agreed_amount ? `(${q.agreed_amount.toLocaleString()} MMK)` : ''}</div>
+                        <div><strong>မေး:</strong> ${q.question}</div>
+                        ${q.answer ? `<div style="background:#f1f5f9;padding:12px;border-radius:16px;margin-top:10px"><strong>✨ အဖြေ:</strong> ${q.answer}</div>` : ''}
+                        ${q.status === 'answered' && !q.paid ? `<button onclick="payForConsultation('${q.id}', ${q.agreed_amount})" style="background:#10b981;margin-top:10px;">💰 ${q.agreed_amount.toLocaleString()} MMK ပေးချေရန်</button>` : ''}
+                    </div>`;
+                });
+            }
             
             if (html === '') html = '<div class="empty-state">မေးခွန်းမရှိသေးပါ</div>';
             container.innerHTML = html;
@@ -345,7 +322,7 @@
         
         function openQuestionModal(astrologerId, astrologerName) {
             selectedAstrologer = { id: astrologerId, name: astrologerName };
-            document.getElementById('selectedAstrologerInfo').innerHTML = `<div class="astro-card" style="background:#f1f5f9;">🔮 ${astrologerName}</div>`;
+            document.getElementById('selectedAstrologerInfo').innerHTML = `<div style="background:#f1f5f9;padding:15px;border-radius:16px;">🔮 ${astrologerName}</div>`;
             document.getElementById('questionModal').style.display = 'flex';
         }
         
@@ -353,94 +330,63 @@
             let question = document.getElementById('questionText').value;
             if (!question) return showNotification('မေးခွန်းရိုက်ထည့်ပါ');
             
-            let consultationRef = database.ref('consultations').push();
-            await consultationRef.set({
-                id: consultationRef.key,
-                userId: currentUser.id,
-                userName: currentUser.name,
-                astrologerId: selectedAstrologer.id,
-                astrologerName: selectedAstrologer.name,
+            let newId = Date.now();
+            let { error } = await supabase.from('consultations').insert([{
+                id: newId,
+                user_id: currentUser.id,
+                user_name: currentUser.name,
+                astrologer_id: selectedAstrologer.id,
+                astrologer_name: selectedAstrologer.name,
                 question: question,
-                answer: '',
-                agreedAmount: null,
-                status: 'pending_price',
-                paid: false,
-                createdAt: new Date().toISOString()
-            });
+                status: 'pending_price'
+            }]);
             
+            if (error) { showNotification('မှားယွင်းမှု: ' + error.message); return; }
             showNotification('မေးခွန်းပို့ပြီးပါပြီ။ ဗေဒင်ဆရာက အခကြေးငွေ တောင်းခံပါမည်။');
             closeModal('questionModal');
             document.getElementById('questionText').value = '';
             await loadUserQuestions();
         }
         
-        async function acceptPriceRequest(requestId) {
-            let priceRef = database.ref('priceRequests/' + requestId);
-            let snapshot = await priceRef.once('value');
-            let req = snapshot.val();
-            if (!req || req.status !== 'pending') return;
-            
-            await priceRef.update({ status: 'accepted' });
-            
-            let consultationRef = database.ref('consultations/' + req.consultationId);
-            await consultationRef.update({ 
-                agreedAmount: req.requestedAmount, 
-                status: 'agreed' 
-            });
-            
-            showNotification(`သဘောတူပြီးပါပြီ။ ဗေဒင်ဆရာက အဖြေပေးပါမည်။ အခကြေးငွေ: ${req.requestedAmount.toLocaleString()} MMK`);
-            closeModal('confirmPriceModal');
+        async function acceptPrice(requestId, amount, consultationId) {
+            await supabase.from('price_requests').update({ status: 'accepted' }).eq('id', requestId);
+            await supabase.from('consultations').update({ agreed_amount: amount, status: 'agreed' }).eq('id', consultationId);
+            showNotification(`သဘောတူပြီးပါပြီ။ အခကြေးငွေ: ${amount.toLocaleString()} MMK`);
             await loadUserQuestions();
         }
         
-        async function rejectPriceRequest(requestId) {
-            let priceRef = database.ref('priceRequests/' + requestId);
-            await priceRef.update({ status: 'rejected' });
-            
-            let snapshot = await priceRef.once('value');
-            let req = snapshot.val();
-            if (req && req.consultationId) {
-                await database.ref('consultations/' + req.consultationId).update({ status: 'rejected' });
-            }
-            
-            showNotification('အခကြေးငွေကို ငြင်းပယ်လိုက်ပါပြီ။');
-            closeModal('confirmPriceModal');
+        async function rejectPrice(requestId) {
+            await supabase.from('price_requests').update({ status: 'rejected' }).eq('id', requestId);
+            showNotification('ငြင်းပယ်လိုက်ပါပြီ။');
             await loadUserQuestions();
         }
         
         async function payForConsultation(consultId, amount) {
-            if (currentUser.balance < amount) { 
-                showNotification(`လက်ကျန်ငွေ မလုံလောက်ပါ။ လိုအပ်သောငွေ: ${amount.toLocaleString()} MMK`); 
-                showTopUpModal(); 
-                return; 
+            if (currentUser.balance < amount) {
+                showNotification(`လက်ကျန်ငွေ မလုံလောက်ပါ။ လိုအပ်သောငွေ: ${amount.toLocaleString()} MMK`);
+                showTopUpModal();
+                return;
             }
             
-            let userRef = database.ref('users/' + currentUser.id);
             let newBalance = currentUser.balance - amount;
-            await userRef.update({ balance: newBalance });
+            await supabase.from('users').update({ balance: newBalance }).eq('id', currentUser.id);
             currentUser.balance = newBalance;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             document.getElementById('userBalance').innerText = currentUser.balance.toLocaleString();
             
-            let consultationRef = database.ref('consultations/' + consultId);
-            let snapshot = await consultationRef.once('value');
-            let cons = snapshot.val();
-            
-            let commission = amount * 0.1;
-            let astroEarn = amount - commission;
-            
-            let astroRef = database.ref('users/' + cons.astrologerId);
-            let astroSnapshot = await astroRef.once('value');
-            let astro = astroSnapshot.val();
-            await astroRef.update({ earnings: (astro.earnings || 0) + astroEarn });
-            
-            await consultationRef.update({ paid: true, status: 'paid' });
-            
-            showNotification(`ငွေပေးချေပြီးပါပြီ။ ဗေဒင်ဆရာ ${astroEarn.toLocaleString()} MMK ရရှိမည်`);
+            let { data: cons } = await supabase.from('consultations').select('*').eq('id', consultId);
+            if (cons && cons.length > 0) {
+                let astroEarn = amount - (amount * 0.1);
+                let { data: astro } = await supabase.from('users').select('*').eq('id', cons[0].astrologer_id);
+                if (astro && astro.length > 0) {
+                    await supabase.from('users').update({ earnings: (astro[0].earnings || 0) + astroEarn }).eq('id', cons[0].astrologer_id);
+                }
+            }
+            await supabase.from('consultations').update({ paid: true, status: 'paid' }).eq('id', consultId);
+            showNotification(`ငွေပေးချေပြီးပါပြီ။`);
             await loadUserQuestions();
         }
         
-        // ==================== ASTROLOGER DASHBOARD ====================
         async function showAstrologerDashboard() {
             document.getElementById('userDashboard').style.display = 'none';
             document.getElementById('astroDashboard').style.display = 'block';
@@ -452,64 +398,55 @@
         }
         
         async function loadPendingQuestions() {
-            let consultations = [];
-            let snapshot = await database.ref('consultations').orderByChild('astrologerId').equalTo(currentUser.id).once('value');
-            snapshot.forEach(child => { if (child.val().status === 'pending_price') consultations.push(child.val()); });
-            
+            let { data } = await supabase.from('consultations').select('*').eq('astrologer_id', currentUser.id).eq('status', 'pending_price');
             let container = document.getElementById('pendingQuestions');
-            if (!consultations.length) { container.innerHTML = '<div class="empty-state">အခကြေးငွေ တောင်းခံရန်မေးခွန်းမရှိ</div>'; return; }
-            container.innerHTML = consultations.map(q => `
+            if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state">အခကြေးငွေ တောင်းခံရန်မေးခွန်းမရှိ</div>'; return; }
+            container.innerHTML = data.map(q => `
                 <div class="astro-card">
-                    <div><strong>${q.userName}</strong></div>
+                    <div><strong>${q.user_name}</strong></div>
                     <div style="margin:10px 0">📝 ${q.question}</div>
                     <div class="price-input-group">
                         <input type="number" id="amount_${q.id}" placeholder="သတ်မှတ်မည့်ငွေပမာဏ (MMK)" style="flex:1">
-                        <button onclick="requestPrice('${q.id}', '${q.userName}', \`${q.question.replace(/`/g, '\\`')}\`)" style="width:auto">💰 အခကြေးငွေ တောင်းခံရန်</button>
+                        <button onclick="requestPrice('${q.id}', '${q.user_name}', \`${q.question.replace(/`/g, '\\`')}\`)" style="width:auto">💰 အခကြေးငွေ တောင်းခံရန်</button>
                     </div>
                 </div>`).join('');
         }
         
         async function requestPrice(consultationId, userName, question) {
             let amount = parseInt(document.getElementById(`amount_${consultationId}`).value);
-            if (!amount || amount < 1000) return showNotification('အနည်းဆုံး 1000 MMK ထည့်ပါ');
+            if (!amount || amount < 1000) return showNotification('အနည်းဆုံး 1000 MMK');
             
-            let priceRef = database.ref('priceRequests').push();
-            await priceRef.set({
-                id: priceRef.key,
-                consultationId: consultationId,
-                userId: currentUser.id,
-                userName: currentUser.name,
-                astrologerId: currentUser.id,
-                astrologerName: currentUser.name,
-                requestedAmount: amount,
+            let newId = Date.now();
+            await supabase.from('price_requests').insert([{
+                id: newId,
+                consultation_id: consultationId,
+                user_id: currentUser.id,
+                user_name: currentUser.name,
+                astrologer_id: currentUser.id,
+                astrologer_name: currentUser.name,
+                requested_amount: amount,
                 question: question,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-            });
-            
-            await database.ref('consultations/' + consultationId).update({ status: 'price_requested' });
-            
+                status: 'pending'
+            }]);
+            await supabase.from('consultations').update({ status: 'price_requested' }).eq('id', consultationId);
             showNotification(`အခကြေးငွေ ${amount.toLocaleString()} MMK ကို ${userName} ထံ တောင်းခံထားပါသည်။`);
             await loadPendingQuestions();
         }
         
         async function loadAgreedQuestions() {
-            let consultations = [];
-            let snapshot = await database.ref('consultations').orderByChild('astrologerId').equalTo(currentUser.id).once('value');
-            snapshot.forEach(child => { if (child.val().status === 'agreed') consultations.push(child.val()); });
-            
+            let { data } = await supabase.from('consultations').select('*').eq('astrologer_id', currentUser.id).eq('status', 'agreed');
             let container = document.getElementById('agreedQuestions');
-            if (!consultations.length) { container.innerHTML = '<div class="empty-state">သဘောတူပြီးသော မေးခွန်းမရှိ</div>'; return; }
-            container.innerHTML = consultations.map(q => `
-                <div class="astro-card" style="border-left-color: #10b981">
-                    <div><strong>${q.userName}</strong> - ${q.agreedAmount.toLocaleString()} MMK</div>
+            if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state">သဘောတူပြီးသော မေးခွန်းမရှိ</div>'; return; }
+            container.innerHTML = data.map(q => `
+                <div class="astro-card">
+                    <div><strong>${q.user_name}</strong> - ${q.agreed_amount.toLocaleString()} MMK</div>
                     <div style="margin:10px 0">📝 ${q.question}</div>
-                    <button onclick="openAnswerModal('${q.id}', '${q.userName}', \`${q.question.replace(/`/g, '\\`')}\`)">✍️ အဖြေပေးရန်</button>
+                    <button onclick="openAnswerModal('${q.id}', '${q.user_name}', \`${q.question.replace(/`/g, '\\`')}\`)">✍️ အဖြေပေးရန်</button>
                 </div>`).join('');
         }
         
         function openAnswerModal(consultationId, userName, question) {
-            window.currentAnswerId = consultationId;
+            currentAnswerId = consultationId;
             document.getElementById('questionInfo').innerHTML = `<div><strong>${userName}</strong></div><div style="margin-top:10px">📝 ${question}</div>`;
             document.getElementById('answerModal').style.display = 'flex';
         }
@@ -517,31 +454,18 @@
         async function submitAnswer() {
             let answer = document.getElementById('answerText').value.trim();
             if (!answer) return showNotification('အဖြေရိုက်ပါ');
-            
-            await database.ref('consultations/' + window.currentAnswerId).update({ 
-                answer: answer, 
-                status: 'answered' 
-            });
-            
-            showNotification('အဖြေပေးပြီးပါပြီ။ သုံးစွဲသူမှ ငွေပေးချေပါက ဝင်ငွေရရှိမည်။');
+            await supabase.from('consultations').update({ answer: answer, status: 'answered' }).eq('id', currentAnswerId);
+            showNotification('အဖြေပေးပြီးပါပြီ။');
             closeModal('answerModal');
             await loadAgreedQuestions();
             await loadAnsweredQuestions();
         }
         
         async function loadAnsweredQuestions() {
-            let consultations = [];
-            let snapshot = await database.ref('consultations').orderByChild('astrologerId').equalTo(currentUser.id).once('value');
-            snapshot.forEach(child => { if (child.val().status === 'answered' || child.val().status === 'paid') consultations.push(child.val()); });
-            
+            let { data } = await supabase.from('consultations').select('*').eq('astrologer_id', currentUser.id).in('status', ['answered', 'paid']).order('created_at', { ascending: false }).limit(10);
             let container = document.getElementById('answeredQuestions');
-            if (!consultations.length) { container.innerHTML = '<div class="empty-state">ဖြေပြီးမေးခွန်းမရှိ</div>'; return; }
-            container.innerHTML = consultations.slice(0,10).map(q => `
-                <div class="astro-card">
-                    <div><strong>${q.userName}</strong> ${q.paid ? '✅ငွေရ' : '⏳ငွေစောင့်'} (${q.agreedAmount?.toLocaleString()} MMK)</div>
-                    <div>📝 ${q.question.substring(0,50)}...</div>
-                    <div>✨ ${q.answer?.substring(0,60)}</div>
-                </div>`).join('');
+            if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state">ဖြေပြီးမေးခွန်းမရှိ</div>'; return; }
+            container.innerHTML = data.map(q => `<div class="astro-card"><div><strong>${q.user_name}</strong> ${q.paid ? '✅ငွေရ' : '⏳ငွေစောင့်'} (${q.agreed_amount?.toLocaleString()} MMK)</div><div>📝 ${q.question?.substring(0,50)}...</div><div>✨ ${q.answer?.substring(0,60)}</div></div>`).join('');
         }
         
         function showWithdrawModal() {
@@ -556,22 +480,19 @@
             if (amount > (currentUser.earnings || 0)) return showNotification('ရရှိငွေထက်မပိုပါနဲ့');
             if (!account) return showNotification('ငွေလွှဲမည့်ဖုန်းနံပါတ်ထည့်ပါ');
             
-            let withdrawRef = database.ref('withdrawRequests').push();
-            await withdrawRef.set({
-                id: withdrawRef.key,
-                astrologerId: currentUser.id,
-                astrologerName: currentUser.name,
+            let newId = Date.now();
+            await supabase.from('withdraw_requests').insert([{
+                id: newId,
+                astrologer_id: currentUser.id,
+                astrologer_name: currentUser.name,
                 amount: amount,
                 account: account,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-            });
-            
+                status: 'pending'
+            }]);
             showNotification('ငွေထုတ်တောင်းခံပြီး၊ Admin မှအတည်ပြုပါမည်');
             closeModal('withdrawModal');
         }
         
-        // ==================== ADMIN DASHBOARD ====================
         async function showAdminDashboard() {
             document.getElementById('userDashboard').style.display = 'none';
             document.getElementById('astroDashboard').style.display = 'none';
@@ -581,174 +502,50 @@
         }
         
         async function updateAdminStats() {
-            let users = await database.ref('users').once('value');
-            let usersList = [];
-            users.forEach(child => usersList.push(child.val()));
-            
-            let topups = await database.ref('topUpRequests').once('value');
-            let topupList = [];
-            topups.forEach(child => topupList.push(child.val()));
-            
-            let withdraws = await database.ref('withdrawRequests').once('value');
-            let withdrawList = [];
-            withdraws.forEach(child => withdrawList.push(child.val()));
-            
+            let { data: users } = await supabase.from('users').select('*');
+            let userCount = users?.filter(u => u.role === 'user').length || 0;
+            let astroCount = users?.filter(u => u.role === 'astrologer' && u.is_approved).length || 0;
+            let pendingAstro = users?.filter(u => u.role === 'astrologer' && !u.is_approved).length || 0;
             document.getElementById('adminStats').innerHTML = `
-                <div class="stat-card"><div class="stat-number">${usersList.filter(u => u.role === 'user').length}</div><div>သုံးစွဲသူ</div></div>
-                <div class="stat-card"><div class="stat-number">${usersList.filter(u => u.role === 'astrologer' && u.isApproved).length}</div><div>ဗေဒင်ဆရာ</div></div>
-                <div class="stat-card"><div class="stat-number">${usersList.filter(u => u.role === 'astrologer' && !u.isApproved).length}</div><div>ဆိုင်းငံ့ဗေဒင်</div></div>
-                <div class="stat-card"><div class="stat-number">${topupList.filter(r => r && r.status === 'pending').length}</div><div>ငွေဖြည့်ဆိုင်း</div></div>
-                <div class="stat-card"><div class="stat-number">${withdrawList.filter(r => r && r.status === 'pending').length}</div><div>ငွေထုတ်ဆိုင်း</div></div>`;
+                <div class="stat-card"><div class="stat-number">${userCount}</div><div>သုံးစွဲသူ</div></div>
+                <div class="stat-card"><div class="stat-number">${astroCount}</div><div>ဗေဒင်ဆရာ</div></div>
+                <div class="stat-card"><div class="stat-number">${pendingAstro}</div><div>ဆိုင်းငံ့ဗေဒင်</div></div>`;
         }
         
         function switchAdminTab(tab) {
-            currentAdminTab = tab;
             document.getElementById('adminPending').style.display = tab === 'pending' ? 'block' : 'none';
             document.getElementById('adminApproved').style.display = tab === 'approved' ? 'block' : 'none';
-            document.getElementById('adminPayments').style.display = tab === 'payments' ? 'block' : 'none';
-            document.getElementById('adminWithdraw').style.display = tab === 'withdraw' ? 'block' : 'none';
             document.getElementById('adminUsers').style.display = tab === 'users' ? 'block' : 'none';
-            
             if (tab === 'pending') loadPendingAstrologers();
             if (tab === 'approved') loadApprovedAstrologers();
-            if (tab === 'payments') loadAdminPayments();
-            if (tab === 'withdraw') loadAdminWithdrawals();
             if (tab === 'users') loadAllUsers();
         }
         
         async function loadPendingAstrologers() {
-            let users = await database.ref('users').once('value');
-            let pending = [];
-            users.forEach(child => { 
-                let u = child.val();
-                if (u.role === 'astrologer' && !u.isApproved) pending.push({ id: child.key, ...u }); 
-            });
-            
+            let { data } = await supabase.from('users').select('*').eq('role', 'astrologer').eq('is_approved', false);
             let container = document.getElementById('adminPending');
-            if (!pending.length) { container.innerHTML = '<div class="empty-state">ဆိုင်းငံ့ဗေဒင်ဆရာမရှိ</div>'; return; }
-            container.innerHTML = pending.map(a => `
-                <div class="astro-card">
-                    <div><strong>${a.name}</strong><br>${a.email}</div>
-                    <button onclick="approveAstrologer('${a.id}')">✅ အတည်ပြု</button>
-                </div>`).join('');
+            if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state">ဆိုင်းငံ့ဗေဒင်ဆရာမရှိ</div>'; return; }
+            container.innerHTML = data.map(a => `<div class="astro-card"><div><strong>${a.name}</strong><br>${a.email}</div><button onclick="approveAstrologer(${a.id})">✅ အတည်ပြု</button></div>`).join('');
         }
         
         async function approveAstrologer(id) {
-            await database.ref('users/' + id).update({ isApproved: true });
+            await supabase.from('users').update({ is_approved: true }).eq('id', id);
             showNotification('အတည်ပြုပြီးပါပြီ');
             await loadPendingAstrologers();
             await updateAdminStats();
         }
         
         async function loadApprovedAstrologers() {
-            let users = await database.ref('users').once('value');
-            let approved = [];
-            users.forEach(child => { 
-                let u = child.val();
-                if (u.role === 'astrologer' && u.isApproved) approved.push(u); 
-            });
-            
+            let { data } = await supabase.from('users').select('*').eq('role', 'astrologer').eq('is_approved', true);
             let container = document.getElementById('adminApproved');
-            container.innerHTML = approved.map(a => `
-                <div class="astro-card">
-                    <div><strong>${a.name}</strong><br>💰 ${(a.earnings || 0).toLocaleString()} MMK<br>🔮 ${(a.astrologyTypes || []).join(', ') || 'ဗေဒင်'}</div>
-                </div>`).join('');
-        }
-        
-        async function loadAdminPayments() {
-            let topups = await database.ref('topUpRequests').once('value');
-            let pending = [];
-            topups.forEach(child => { 
-                let t = child.val();
-                if (t && t.status === 'pending') pending.push({ id: child.key, ...t }); 
-            });
-            
-            let container = document.getElementById('adminPayments');
-            if (!pending.length) { container.innerHTML = '<div class="empty-state">ငွေဖြည့်တောင်းခံမှုမရှိ</div>'; return; }
-            container.innerHTML = pending.map(r => `
-                <div class="astro-card">
-                    <div><strong>${r.senderName}</strong> (${r.userName})<br>💰 ${r.amount.toLocaleString()} MMK</div>
-                    ${r.screenshot ? `<img src="${r.screenshot}" style="max-width:100%;max-height:150px;margin:10px 0">` : ''}
-                    <div class="action-buttons">
-                        <button onclick="approveTopUp('${r.id}', ${r.amount}, ${r.userId})" style="background:#10b981;">✅ အတည်ပြု</button>
-                        <button onclick="rejectTopUp('${r.id}')" style="background:#ef4444;">❌ ပယ်ဖျက်</button>
-                    </div>
-                </div>`).join('');
-        }
-        
-        async function approveTopUp(id, amount, userId) {
-            await database.ref('topUpRequests/' + id).update({ status: 'approved' });
-            let userRef = database.ref('users/' + userId);
-            let snapshot = await userRef.once('value');
-            let user = snapshot.val();
-            await userRef.update({ balance: (user.balance || 0) + amount });
-            showNotification(`${amount.toLocaleString()} MMK ဖြည့်ပြီးပါပြီ`);
-            await loadAdminPayments();
-            await updateAdminStats();
-        }
-        
-        async function rejectTopUp(id) {
-            await database.ref('topUpRequests/' + id).update({ status: 'rejected' });
-            showNotification('ပယ်ဖျက်ပြီးပါပြီ');
-            await loadAdminPayments();
-        }
-        
-        async function loadAdminWithdrawals() {
-            let withdraws = await database.ref('withdrawRequests').once('value');
-            let pending = [];
-            withdraws.forEach(child => { 
-                let w = child.val();
-                if (w && w.status === 'pending') pending.push({ id: child.key, ...w }); 
-            });
-            
-            let container = document.getElementById('adminWithdraw');
-            if (!pending.length) { container.innerHTML = '<div class="empty-state">ငွေထုတ်တောင်းခံမှုမရှိ</div>'; return; }
-            container.innerHTML = pending.map(r => `
-                <div class="astro-card">
-                    <div><strong>${r.astrologerName}</strong><br>💰 ${r.amount.toLocaleString()} MMK<br>📱 ${r.account}</div>
-                    <div class="action-buttons">
-                        <button onclick="approveWithdraw('${r.id}', ${r.amount}, ${r.astrologerId})" style="background:#10b981;">✅ အတည်ပြု</button>
-                        <button onclick="rejectWithdraw('${r.id}')" style="background:#ef4444;">❌ ပယ်ဖျက်</button>
-                    </div>
-                </div>`).join('');
-        }
-        
-        async function approveWithdraw(id, amount, astrologerId) {
-            await database.ref('withdrawRequests/' + id).update({ status: 'approved' });
-            let astroRef = database.ref('users/' + astrologerId);
-            let snapshot = await astroRef.once('value');
-            let astro = snapshot.val();
-            await astroRef.update({ earnings: (astro.earnings || 0) - amount });
-            showNotification(`ငွေထုတ်အတည်ပြုပြီးပါပြီ`);
-            await loadAdminWithdrawals();
-            await updateAdminStats();
-        }
-        
-        async function rejectWithdraw(id) {
-            await database.ref('withdrawRequests/' + id).update({ status: 'rejected' });
-            showNotification('ပယ်ဖျက်ပြီးပါပြီ');
-            await loadAdminWithdrawals();
+            container.innerHTML = data?.map(a => `<div class="astro-card"><div><strong>${a.name}</strong><br>💰 ${(a.earnings || 0).toLocaleString()} MMK</div></div>`).join('') || '<div class="empty-state">မရှိ</div>';
         }
         
         async function loadAllUsers() {
-            let users = await database.ref('users').once('value');
-            let regularUsers = [];
-            users.forEach(child => { 
-                let u = child.val();
-                if (u.role === 'user') regularUsers.push({ id: child.key, ...u }); 
-            });
-            
+            let { data } = await supabase.from('users').select('*').eq('role', 'user');
             let container = document.getElementById('adminUsers');
-            if (!regularUsers.length) { container.innerHTML = '<div class="empty-state">သုံးစွဲသူမရှိသေး</div>'; return; }
-            container.innerHTML = regularUsers.map(user => `
-                <div class="user-card">
-                    <div class="user-info">
-                        <div><strong>👤 ${user.name}</strong></div>
-                        <div>📧 ${user.email}</div>
-                        <div>💰 ${(user.balance || 0).toLocaleString()} MMK</div>
-                    </div>
-                    <button class="delete-btn" onclick="openDeleteUserModal('${user.id}', '${user.name}')">🗑️ ဖျက်ရန်</button>
-                </div>`).join('');
+            if (!data || data.length === 0) { container.innerHTML = '<div class="empty-state">သုံးစွဲသူမရှိသေး</div>'; return; }
+            container.innerHTML = data.map(user => `<div class="user-card"><div><strong>👤 ${user.name}</strong><br>📧 ${user.email}<br>💰 ${(user.balance || 0).toLocaleString()} MMK</div><button class="delete-btn" onclick="openDeleteUserModal(${user.id}, '${user.name}')">🗑️ ဖျက်ရန်</button></div>`).join('');
         }
         
         function openDeleteUserModal(userId, userName) {
@@ -759,9 +556,8 @@
         
         async function confirmDeleteUser() {
             if (!userToDelete) return;
-            await database.ref('users/' + userToDelete).remove();
-            let consultations = await database.ref('consultations').orderByChild('userId').equalTo(userToDelete).once('value');
-            consultations.forEach(child => database.ref('consultations/' + child.key).remove());
+            await supabase.from('users').delete().eq('id', userToDelete);
+            await supabase.from('consultations').delete().eq('user_id', userToDelete);
             showNotification('အကောင့်ဖျက်ပြီးပါပြီ');
             closeModal('deleteUserModal');
             userToDelete = null;
@@ -797,18 +593,16 @@
             if (!senderName) return showNotification('ငွေလွှဲသူအမည်ထည့်ပါ');
             if (!currentScreenshot) return showNotification('Screenshot တင်ပါ');
             
-            let topUpRef = database.ref('topUpRequests').push();
-            await topUpRef.set({
-                id: topUpRef.key,
-                userId: currentUser.id,
-                userName: currentUser.name,
-                senderName: senderName,
+            let newId = Date.now();
+            await supabase.from('topup_requests').insert([{
+                id: newId,
+                user_id: currentUser.id,
+                user_name: currentUser.name,
+                sender_name: senderName,
                 amount: amount,
                 screenshot: currentScreenshot,
-                status: 'pending',
-                createdAt: new Date().toISOString()
-            });
-            
+                status: 'pending'
+            }]);
             showNotification('တောင်းခံပြီးပါပြီ။ Admin မှအတည်ပြုပါမည်');
             closeModal('topUpModal');
         }
@@ -819,14 +613,12 @@
             if (currentUser.role === 'user') {
                 document.getElementById('authSection').style.display = 'none';
                 showUserDashboard();
-            } else if (currentUser.role === 'astrologer' && currentUser.isApproved) {
+            } else if (currentUser.role === 'astrologer' && currentUser.is_approved) {
                 document.getElementById('authSection').style.display = 'none';
                 showAstrologerDashboard();
             } else if (currentUser.role === 'admin') {
                 document.getElementById('authSection').style.display = 'none';
                 showAdminDashboard();
-            } else {
-                logout();
             }
         }
         
